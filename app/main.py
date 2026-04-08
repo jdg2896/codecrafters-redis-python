@@ -16,6 +16,19 @@ def main():
         if data.startswith(b"*1\r\n$4\r\nPING\r\n"):  # check if command is PING
             print(f"Received PING command: Responding with PONG to client...")
             connection.sendall(b"+PONG\r\n")  # send response to client
+
+            while True:
+                data = connection.recv(1024)  # wait for more data from client
+                if not data:
+                    print(f"Client {client_address} disconnected.")
+                    break  # client disconnected
+                print(f"Received data: {data}")
+                if data.startswith(b"*1\r\n$4\r\nPING\r\n"):  # check if command is PING
+                    print(f"Received PING command: Responding with PONG to client...")
+                    connection.sendall(b"+PONG\r\n")  # send response to client
+                else:
+                    print(f"Received unknown command: {data}")
+                    connection.sendall(b"-ERR unknown command\r\n")  # send error response to client
             connection.close()  # close client connection
 
 
