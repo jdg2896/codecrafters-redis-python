@@ -14,14 +14,19 @@ async def main():
 
 
 async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+    print("Client connected:", writer.get_extra_info("peername"))
     while True:
         data = await reader.read(1024)
         if not data:
             break
         if data.startswith(PING):
+            print("Received PING from client:", writer.get_extra_info("peername"))
+            print("Sending PONG to client:", writer.get_extra_info("peername"))
             writer.write(PONG)
             await writer.drain()
     writer.close()
+    await writer.wait_closed()
+    print("Client disconnected:", writer.get_extra_info("peername"))
 
 
 if __name__ == "__main__":
