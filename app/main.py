@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 # Constants for Redis protocol
 PING = b"*1\r\n$4\r\nPING\r\n"
@@ -45,14 +46,38 @@ async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWri
 
 
 def _parse_command(data: bytes):
-    if data.startswith(PING):
+    '''Parse the incoming data from the client and determine which Redis command is being executed.
+    
+    If the command is recognized, return a tuple containing the command name and any arguments. 
+    
+    If the command is not recognized, return None.
+
+    Assuming the received command is in correct RESP format, here's how the command will be parsed:
+    
+    For PING: data.split(CRLF) will yield [b'*1', b'$4', b'PING', b'']
+    - parts[0] = *N (array count)
+    - parts[1] = $N (command length)
+    - parts[2] = command name
+
+    For ECHO: data.split(CRLF) will yield [b'*2', b'$4', b'ECHO', b'$N', b'argument', b'']
+    - parts[0] = *N (array count)
+    - parts[1] = $N (command length)
+    - parts[2] = command name
+    - parts[3] = $N (argument length)
+    - parts[4] = argument
+    '''
+    parts = data.split(CRLF)
+    command = parts[2] if len(parts) > 2 else None
+    args = parts[4::2]
+
+    if command == b'PING':
         return "PING"
-    elif data.startswith(ECHO):
-        return "ECHO", data[len(ECHO):].lstrip()
-    elif data.startswith(SET):
-        return "SET", data[len(SET):].lstrip()
-    elif data.startswith(GET):
-        return "GET", data[len(GET):].lstrip()
+    elif command == b'ECHO':
+        return "ECHO", args
+    elif command == b'SET':
+        return "SET", args
+    elif command == b'GET':
+        return "GET", args
     else:
         return None
 
@@ -61,14 +86,29 @@ def _handle_command(command: str | tuple | None):
     if command == "PING":
         return PONG
     elif isinstance(command, tuple) and command[0] == "ECHO":
-        return command[1]
+        if len(command[1]) != 1:
+            return b"-ERR wrong number of arguments for 'ECHO' command\r\n"
+        return command[1][0]
     elif isinstance(command, tuple) and command[0] == "SET":
-        parts = command[1].split(CRLF)
-        key, value = parts[1], parts[3]
+        key = command[1][0]
+        value = command[1][1]
+        expiry_unit = command[1][2] if len(command[1]) > 2 else None
+        expiry_value = command[1][3] if len(command[1]) > 3 else None
         data_store[key] = value
+
+        # Handle optional expiry parameters (PX for milliseconds, EX for seconds)
+        if expiry_unit and expiry_value:
+            try:
+                expiry_value = int(expiry_value)
+                if expiry_unit.upper() == b'PX':
+                    asyncio.create_task(_expire_key(key, expiry_value / 1000))
+                elif expiry_unit.upper() == b'EX':
+                    asyncio.create_task(_expire_key(key, expiry_value))
+            except ValueError:
+                return b"-ERR invalid expiry time\r\n"
         return OK
     elif isinstance(command, tuple) and command[0] == "GET":
-        key = command[1].split(CRLF)[1]
+        key = command[1][0]
         value = data_store.get(key)
         if value is not None:
             return _to_bulk_string(value)
@@ -84,6 +124,11 @@ def _get_client_address(writer: asyncio.StreamWriter):
 
 def _to_bulk_string(data: bytes):
     return b"$" + str(len(data)).encode() + CRLF + data + CRLF
+
+
+async def _expire_key(key: bytes, delay: float):
+    await asyncio.sleep(delay)
+    data_store.pop(key, None)
 
 
 if __name__ == "__main__":
