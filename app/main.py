@@ -1,4 +1,5 @@
-import socket  # noqa: F401
+import socket
+import asyncio
 
 PING = b"*1\r\n$4\r\nPING\r\n"
 PONG = b"+PONG\r\n"
@@ -9,26 +10,31 @@ def main():
 
     print("Waiting for client connections...")
     client_connection, client_address = server_socket.accept() # wait for client
-    data = client_connection.recv(1024)  # receive data from client
 
+    asyncio.run(_handle_client(client_connection, client_address))
+
+
+async def _handle_client(client_connection: socket.socket, client_address):
     print(f"Client connected from {client_address}")
-    print(f"Received data: {data}")
-    if data.startswith(PING):
-        _send_pong(client_connection)
+    with client_connection:
+            data = client_connection.recv(1024)  # receive data from client
 
-        while True:
-            data = client_connection.recv(1024)  # wait for more data from client
-            if not data:
-                print(f"Client {client_address} disconnected.")
-                break  # client disconnected
+            print(f"Client connected from {client_address}")
             print(f"Received data: {data}")
             if data.startswith(PING):
                 _send_pong(client_connection)
-            else:
-                print(f"Received unknown command: {data}")
-                client_connection.sendall(b"-ERR unknown command\r\n")  # send error response to client
 
-        client_connection.close()
+                while True:
+                    data = client_connection.recv(1024)  # wait for more data from client
+                    if not data:
+                        print(f"Client {client_address} disconnected.")
+                        break  # client disconnected
+                    print(f"Received data: {data}")
+                    if data.startswith(PING):
+                        _send_pong(client_connection)
+                    else:
+                        print(f"Received unknown command: {data}")
+                        client_connection.sendall(b"-ERR unknown command\r\n")  # send error response to client
 
 def _send_pong(client_connection: socket.socket):
     print(f"Received PING command: Responding with PONG to client...")
