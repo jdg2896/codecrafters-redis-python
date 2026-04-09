@@ -4,14 +4,14 @@ import asyncio
 PING = b"*1\r\n$4\r\nPING\r\n"
 PONG = b"+PONG\r\n"
 
-def main():
+async def main():
     print("Starting Redis server on localhost:6379...")
     server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
 
     print("Waiting for client connections...")
     client_connection, client_address = server_socket.accept() # wait for client
 
-    asyncio.run(_handle_client(client_connection, client_address))
+    await _handle_client(client_connection, client_address)
 
 
 async def _handle_client(client_connection: socket.socket, client_address):
@@ -36,10 +36,11 @@ async def _handle_client(client_connection: socket.socket, client_address):
                         print(f"Received unknown command: {data}")
                         client_connection.sendall(b"-ERR unknown command\r\n")  # send error response to client
 
+
 def _send_pong(client_connection: socket.socket):
     print(f"Received PING command: Responding with PONG to client...")
     client_connection.sendall(PONG)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
