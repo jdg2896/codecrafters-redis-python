@@ -4,9 +4,6 @@ import time
 # Constants for Redis protocol
 PING = b"*1\r\n$4\r\nPING\r\n"
 PONG = b"+PONG\r\n"
-ECHO = b"*2\r\n$4\r\nECHO\r\n"
-SET = b"*3\r\n$3\r\nSET\r\n"
-GET = b"*2\r\n$3\r\nGET\r\n"
 OK = b"+OK\r\n"
 NIL = b"$-1\r\n"
 CRLF = b"\r\n"
@@ -88,7 +85,7 @@ def _handle_command(command: str | tuple | None):
     elif isinstance(command, tuple) and command[0] == "ECHO":
         if len(command[1]) != 1:
             return b"-ERR wrong number of arguments for 'ECHO' command\r\n"
-        return command[1][0]
+        return _to_bulk_string(command[1][0])
     elif isinstance(command, tuple) and command[0] == "SET":
         key = command[1][0]
         value = command[1][1]
