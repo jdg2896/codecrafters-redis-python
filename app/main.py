@@ -13,12 +13,14 @@ async def main():
         await server.serve_forever()
 
 
-async def _handle_client(reader, writer):
-    data = await reader.read(1024)   # non-blocking
-    print(f"Received data: {data!r}")
-    if data == PING:
-        writer.write(PONG)
-        await writer.drain()
+async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+    while True:
+        data = await reader.read(1024)
+        if not data:
+            break
+        if data.startswith(PING):
+            writer.write(PONG)
+            await writer.drain()
     writer.close()
 
 
