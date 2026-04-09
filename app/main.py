@@ -48,11 +48,11 @@ def _parse_command(data: bytes):
     if data.startswith(PING):
         return "PING"
     elif data.startswith(ECHO):
-        return "ECHO", data[len(ECHO):].strip()
+        return "ECHO", data[len(ECHO):].lstrip()
     elif data.startswith(SET):
-        return "SET", data[len(SET):].strip()
+        return "SET", data[len(SET):].lstrip()
     elif data.startswith(GET):
-        return "GET", data[len(GET):].strip()
+        return "GET", data[len(GET):].lstrip()
     else:
         return None
 
@@ -61,17 +61,17 @@ def _handle_command(command: str | tuple | None):
     if command == "PING":
         return PONG
     elif isinstance(command, tuple) and command[0] == "ECHO":
-        return command[1] + CRLF
+        return command[1]
     elif isinstance(command, tuple) and command[0] == "SET":
         parts = command[1].split(CRLF)
         key, value = parts[1], parts[3]
         data_store[key] = value
         return OK
     elif isinstance(command, tuple) and command[0] == "GET":
-        key = command[1]
+        key = command[1].split(CRLF)[1]
         value = data_store.get(key)
         if value is not None:
-            return value + CRLF
+            return _to_bulk_string(value)
         else:
             return NIL
     else:
@@ -80,6 +80,10 @@ def _handle_command(command: str | tuple | None):
 
 def _get_client_address(writer: asyncio.StreamWriter):
     return writer.get_extra_info("peername")
+
+
+def _to_bulk_string(data: bytes):
+    return b"$" + str(len(data)).encode() + CRLF + data + CRLF
 
 
 if __name__ == "__main__":
