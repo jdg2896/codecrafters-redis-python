@@ -15,26 +15,45 @@ async def main():
 
 
 async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-    print("Client connected:", writer.get_extra_info("peername"))
+    print("Client connected:", _get_client_address(writer))
     while True:
         data = await reader.read(1024)
         if not data:
             break
-        if data.startswith(PING):
-            print("Received PING from client:", writer.get_extra_info("peername"))
-            print("Sending PONG to client:", writer.get_extra_info("peername"))
-            writer.write(PONG)
-            await writer.drain()
-        elif data.startswith(ECHO):
-            print("Received ECHO from client:", writer.get_extra_info("peername"))
-            message = data[len(ECHO):].strip() + b"\r\n"
-            print("Echoing back to client:", writer.get_extra_info("peername"), "Message:", message)
-            writer.write(message)
-            await writer.drain()
+
+        command = _parse_command(data)
+        print("Received command from client:", _get_client_address(writer), "Command:", command)
+
+        response = _handle_command(command)
+        print("Sending response to client:", _get_client_address(writer), "Response:", response)
+        writer.write(response)
+        await writer.drain()
 
     writer.close()
     await writer.wait_closed()
-    print("Client disconnected:", writer.get_extra_info("peername"))
+    print("Client disconnected:", _get_client_address(writer))
+
+
+def _parse_command(data: bytes):
+    if data.startswith(PING):
+        return "PING"
+    elif data.startswith(ECHO):
+        return "ECHO", data[len(ECHO):].strip()
+    else:
+        return None
+
+
+def _handle_command(command: str | tuple | None):
+    if command == "PING":
+        return PONG
+    elif isinstance(command, tuple) and command[0] == "ECHO":
+        return command[1] + b"\r\n"
+    else:
+        return b"-ERR unknown command\r\n"
+
+
+def _get_client_address(writer: asyncio.StreamWriter):
+    return writer.get_extra_info("peername")
 
 
 if __name__ == "__main__":
