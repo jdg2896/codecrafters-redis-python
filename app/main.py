@@ -63,7 +63,8 @@ def _handle_command(command: str | tuple | None):
     elif isinstance(command, tuple) and command[0] == "ECHO":
         return command[1] + CRLF
     elif isinstance(command, tuple) and command[0] == "SET":
-        key, value = command[1].split(b" ", 1)
+        parts = command[1].split(CRLF)
+        key, value = parts[1], parts[3]
         data_store[key] = value
         return OK
     elif isinstance(command, tuple) and command[0] == "GET":
