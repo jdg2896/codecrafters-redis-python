@@ -27,9 +27,9 @@ async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWri
             await writer.drain()
         elif data.startswith(ECHO):
             print("Received ECHO from client:", writer.get_extra_info("peername"))
-            message = data[len(ECHO):].strip()
+            message = data[len(ECHO):].strip() + b"\r\n"
             print("Echoing back to client:", writer.get_extra_info("peername"), "Message:", message)
-            writer.write(b"+" + message + b"\r\n")
+            writer.write(message)
             await writer.drain()
 
     writer.close()
