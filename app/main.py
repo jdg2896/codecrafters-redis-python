@@ -2,7 +2,6 @@ import asyncio
 import time
 
 # Constants for Redis protocol
-PING = b"*1\r\n$4\r\nPING\r\n"
 PONG = b"+PONG\r\n"
 OK = b"+OK\r\n"
 NIL = b"$-1\r\n"
@@ -56,16 +55,17 @@ def _parse_command(data: bytes):
     - parts[1] = $N (command length)
     - parts[2] = command name
 
-    For ECHO: data.split(CRLF) will yield [b'*2', b'$4', b'ECHO', b'$N', b'argument', b'']
+    For ECHO and other commands with arguments: data.split(CRLF) will yield [b'*2', b'$4', b'ECHO', b'$N', b'argument', ...]
     - parts[0] = *N (array count)
     - parts[1] = $N (command length)
     - parts[2] = command name
     - parts[3] = $N (argument length)
     - parts[4] = argument
+    - ... and so on for additional arguments
     '''
     parts = data.split(CRLF)
     command = parts[2] if len(parts) > 2 else None
-    args = parts[4::2]
+    args = parts[4::2] 
 
     if command == b'PING':
         return "PING"
@@ -91,41 +91,49 @@ def _handle_command(command: str | tuple | None):
         value = command[1][1]
         expiry_unit = command[1][2] if len(command[1]) > 2 else None
         expiry_value = command[1][3] if len(command[1]) > 3 else None
-        data_store[key] = value
 
-        # Handle optional expiry parameters (PX for milliseconds, EX for seconds)
-        if expiry_unit and expiry_value:
-            try:
-                expiry_value = int(expiry_value)
-                if expiry_unit.upper() == b'PX':
-                    asyncio.create_task(_expire_key(key, expiry_value / 1000))
-                elif expiry_unit.upper() == b'EX':
-                    asyncio.create_task(_expire_key(key, expiry_value))
-            except ValueError:
-                return b"-ERR invalid expiry time\r\n"
+        # Handle optional expiry parameters
+        expires_at = _set_expiry(key, expiry_unit, expiry_value)
+
+        data_store[key] = (value, expires_at)
+
         return OK
     elif isinstance(command, tuple) and command[0] == "GET":
         key = command[1][0]
         value = data_store.get(key)
-        if value is not None:
-            return _to_bulk_string(value)
+        if value is not None and (value[1] is None or value[1] > time.time()):
+            return _to_bulk_string(value[0])
         else:
             return NIL
     else:
         return b"-ERR unknown command\r\n"
 
 
+def _set_expiry(key: bytes, expiry_unit: bytes | None, expiry_value: int | None):
+    '''Returns the expiry time for a key in the data store. 
+    
+    The expiry time can be specified in milliseconds (PX) or seconds (EX).'''
+    try:
+        expires_at = None
+        if expiry_unit and expiry_value:
+            ms = int(expiry_value)
+            if expiry_unit == b'PX':
+                expires_at = time.time() + ms / 1000
+            elif expiry_unit == b'EX':
+                expires_at = time.time() + ms
+        
+        return expires_at
+    except ValueError:
+        return b"-ERR invalid expiry time\r\n"
+
+
+# Helper functions
 def _get_client_address(writer: asyncio.StreamWriter):
     return writer.get_extra_info("peername")
 
 
 def _to_bulk_string(data: bytes):
     return b"$" + str(len(data)).encode() + CRLF + data + CRLF
-
-
-async def _expire_key(key: bytes, delay: float):
-    await asyncio.sleep(delay)
-    data_store.pop(key, None)
 
 
 if __name__ == "__main__":
