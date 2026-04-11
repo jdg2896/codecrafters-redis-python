@@ -10,14 +10,15 @@ def handle(args: list[bytes], data_store: DataStore) -> bytes:
     list_length = len(data_store[key][0]) if key in data_store else 0
 
     # Handle negative indices, converting them to positive indices based on the length of the list
-    # If the negative index is still out of bounds after adjustment, set it to 0 (the start of the list)
     if start < 0:
         start += list_length
+        # If the negative index is still out of bounds after adjustment, set it to 0 (the start of the list)
         if start < 0:
             start = 0
 
     if stop < 0:
         stop += list_length
+        # If the negative index is still out of bounds after adjustment, set it to 0 (the start of the list)
         if stop < 0:
             stop = 0
 

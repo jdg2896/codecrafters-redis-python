@@ -3,7 +3,15 @@ import asyncio
 from app.constants import CRLF
 from app.types import DataStore
 from app.utils import get_client_address
-from app.commands import ping, echo, set, get, rpush, lrange
+from app.commands import (
+    lpush,
+    ping,
+    echo,
+    set,
+    get,
+    rpush,
+    lrange,
+)
 
 
 # In-memory data store for SET and GET commands
@@ -46,6 +54,7 @@ COMMAND_HANDLERS = {
     b'GET': get.handle,
     b'RPUSH': rpush.handle,
     b'LRANGE': lrange.handle,
+    b'LPUSH': lpush.handle,
 }
 
 def _handle_command(data: bytes, client_address: str) -> bytes:
