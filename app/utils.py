@@ -36,3 +36,10 @@ def to_resp_bulk_string(data: bytes):
 
 def to_resp_integer(value: int):
     return b":" + str(value).encode() + CRLF
+
+
+def to_resp_array(items: list[bytes]):
+    resp = b"*" + str(len(items)).encode() + CRLF
+    for item in items:
+        resp += to_resp_bulk_string(item)
+    return resp

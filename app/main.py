@@ -2,7 +2,13 @@ import asyncio
 import time
 
 from .constants import CRLF, PONG, OK, NIL
-from .utils import compute_expiry, get_client_address, to_resp_bulk_string, to_resp_integer
+from .utils import (
+    compute_expiry,
+    get_client_address,
+    to_resp_bulk_string,
+    to_resp_integer,
+    to_resp_array,
+)
 
 # In-memory data store for SET and GET commands
 data_store = {}
@@ -75,6 +81,8 @@ def _parse_command(data: bytes):
         return "GET", args
     elif command == b'RPUSH':
         return "RPUSH", args
+    elif command == b'LRANGE':
+        return "LRANGE", args
     else:
         return None
 
@@ -115,6 +123,29 @@ def _handle_command(command: str | tuple | None):
             data_store[key] = ([], None)
         data_store[key][0].extend(values)
         return to_resp_integer(len(data_store[key][0]))
+    elif isinstance(command, tuple) and command[0] == "LRANGE":
+        key = command[1][0]
+        start = int(command[1][1])
+        stop = int(command[1][2])
+
+        # If list is empty or key does not exist, return empty array
+        if key not in data_store:
+            return NIL
+        
+        # If start index is greater than or equal to the length of the list, return empty array
+        if start >= len(data_store[key][0]):
+            return NIL
+        
+        # If stop index is greater than or equal to the length of the list, adjust it to the last index
+        if stop >= len(data_store[key][0]):
+            stop = len(data_store[key][0]) - 1
+
+        # If start index is greater than stop index, return empty array
+        if start > stop:
+            return NIL
+
+        values = data_store[key][0]
+        return to_resp_array(values[start:stop+1])
     else:
         return b"-ERR unknown command\r\n"
 
