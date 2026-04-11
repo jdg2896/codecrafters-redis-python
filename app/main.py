@@ -75,6 +75,8 @@ def _parse_command(data: bytes):
         return "SET", args
     elif command == b'GET':
         return "GET", args
+    elif command == b'RPUSH':
+        return "RPUSH", args
     else:
         return None
 
@@ -105,6 +107,13 @@ def _handle_command(command: str | tuple | None):
             return _to_bulk_string(value[0])
         else:
             return NIL
+    elif isinstance(command, tuple) and command[0] == "RPUSH":
+        key = command[1][0]
+        values = command[1][1:]
+        if key not in data_store:
+            data_store[key] = ([], None)
+        data_store[key][0].extend(values)
+        return _to_resp_integer(len(data_store[key][0]))
     else:
         return b"-ERR unknown command\r\n"
 
@@ -134,6 +143,10 @@ def _get_client_address(writer: asyncio.StreamWriter):
 
 def _to_bulk_string(data: bytes):
     return b"$" + str(len(data)).encode() + CRLF + data + CRLF
+
+
+def _to_resp_integer(value: int):
+    return b":" + str(value).encode() + CRLF
 
 
 if __name__ == "__main__":
