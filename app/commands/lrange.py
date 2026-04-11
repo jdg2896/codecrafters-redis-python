@@ -7,7 +7,9 @@ def handle(args: list[bytes], data_store: DataStore) -> bytes:
     key = args[0]
     start = int(args[1])
     stop = int(args[2])
-    list_length = len(data_store[key][0]) if key in data_store else 0
+    list = data_store[key][0] if key in data_store else []
+    list_length = len(list)
+    print("Handling LRANGE command for key:", key, "Start:", start, "Stop:", stop, "List length:", list_length, "List:", list)
 
     # Handle negative indices, converting them to positive indices based on the length of the list
     if start < 0:
@@ -39,4 +41,5 @@ def handle(args: list[bytes], data_store: DataStore) -> bytes:
         return EMPTY_ARRAY
 
     values = data_store[key][0]
+    print("LRANGE result for key:", key, "Values:", values[start:stop+1])
     return to_resp_array(values[start:stop+1])
