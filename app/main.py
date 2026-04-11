@@ -1,7 +1,7 @@
 import asyncio
 import time
 
-from .constants import CRLF, PONG, OK, NIL
+from .constants import CRLF, PONG, OK, NIL, EMPTY_ARRAY
 from .utils import (
     compute_expiry,
     get_client_address,
@@ -130,11 +130,11 @@ def _handle_command(command: str | tuple | None):
 
         # If list is empty or key does not exist, return empty array
         if key not in data_store:
-            return NIL
+            return EMPTY_ARRAY
         
         # If start index is greater than or equal to the length of the list, return empty array
         if start >= len(data_store[key][0]):
-            return NIL
+            return EMPTY_ARRAY
         
         # If stop index is greater than or equal to the length of the list, adjust it to the last index
         if stop >= len(data_store[key][0]):
@@ -142,7 +142,7 @@ def _handle_command(command: str | tuple | None):
 
         # If start index is greater than stop index, return empty array
         if start > stop:
-            return NIL
+            return EMPTY_ARRAY
 
         values = data_store[key][0]
         return to_resp_array(values[start:stop+1])
