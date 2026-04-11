@@ -8,18 +8,14 @@ def handle(args: list[bytes], data_store: DataStore) -> bytes:
     number = int(args[1]) if len(args) > 1 else 1
     if key not in data_store:
         return NIL
-    # Remove and return the first element from the list
+
     list = data_store[key][0]
-    values = list[:number]
     if not list:
         return NIL
-    for _ in range(number):
-        values += list.pop(0)
-    
-    print("LPOP result for key:", key, "Value:", values)
-    if len(values) == 1:
+
+    count = min(number, len(list))
+    values = [list.pop(0) for _ in range(count)]
+
+    if len(values) == 1 and len(args) == 1:  # no count arg → return single bulk string
         return to_resp_bulk_string(values[0])
-    elif len(values) > 1:
-        return to_resp_array(values)
-    else:
-        return NIL
+    return to_resp_array(values)
