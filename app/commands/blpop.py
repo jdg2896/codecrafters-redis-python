@@ -9,7 +9,7 @@ POLL_INTERVAL = 0.1  # seconds between checks
 
 async def handle(args: list[bytes], data_store: DataStore) -> bytes:
     key = args[0]
-    timeout = float(args[1])  # last arg is always timeout
+    timeout = float(args[1])
     deadline = time.time() + timeout if timeout > 0 else float('inf')
 
     while True:

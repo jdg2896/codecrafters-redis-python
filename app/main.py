@@ -40,7 +40,7 @@ async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWri
         if not data:
             break
 
-        response = _handle_command(data, client_address)
+        response = await _handle_command(data, client_address)
         print("Sending response to client:", client_address, "Response:", response)
         writer.write(response)
         await writer.drain()
@@ -50,7 +50,7 @@ async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWri
     print("Client disconnected:", client_address)
 
 
-def _handle_command(data: bytes, client_address: str) -> bytes:
+async def _handle_command(data: bytes, client_address: str) -> bytes:
     '''Execute a Redis command from raw RESP data and return the response.
 
     Parses the RESP-encoded data, looks up the command handler, and returns the response bytes.
@@ -93,7 +93,10 @@ def _handle_command(data: bytes, client_address: str) -> bytes:
     }
     handler = COMMAND_HANDLERS.get(command)
     if handler:
-        return handler(args, data_store)
+        result = handler(args, data_store)
+        if asyncio.iscoroutine(result):
+            return await result
+        return result
 
     return b"-ERR unknown command\r\n"
 
