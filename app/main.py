@@ -4,6 +4,7 @@ from app.constants import CRLF
 from app.types import DataStore
 from app.utils import get_client_address
 from app.commands import (
+    blpop,
     llen,
     lpop,
     lpush,
@@ -88,6 +89,7 @@ def _handle_command(data: bytes, client_address: str) -> bytes:
         b'LPUSH': lpush.handle,
         b'LLEN': llen.handle,
         b'LPOP': lpop.handle,
+        b'BLPOP': blpop.handle,
     }
     handler = COMMAND_HANDLERS.get(command)
     if handler:
