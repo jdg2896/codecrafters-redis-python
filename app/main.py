@@ -4,6 +4,7 @@ from app.constants import CRLF
 from app.types import DataStore
 from app.utils import get_client_address
 from app.commands import (
+    llen,
     lpush,
     ping,
     echo,
@@ -55,6 +56,7 @@ COMMAND_HANDLERS = {
     b'RPUSH': rpush.handle,
     b'LRANGE': lrange.handle,
     b'LPUSH': lpush.handle,
+    b'LLEN': llen.handle,
 }
 
 def _handle_command(data: bytes, client_address: str) -> bytes:
