@@ -1,17 +1,15 @@
 import asyncio
-import time
+from calendar import c
 
-from .constants import CRLF, PONG, OK, NIL, EMPTY_ARRAY
-from .utils import (
-    compute_expiry,
-    get_client_address,
-    to_resp_bulk_string,
-    to_resp_integer,
-    to_resp_array,
-)
+from app.constants import CRLF
+from app.types import DataStore
+from app.utils import get_client_address
+from app.commands import ping, echo, set, get, rpush, lrange
+
 
 # In-memory data store for SET and GET commands
-data_store = {}
+data_store: DataStore = {}
+
 
 async def main():
     '''Start the Redis server and handle incoming client connections using the asyncio event loop.'''
@@ -32,10 +30,7 @@ async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWri
         if not data:
             break
 
-        command = _parse_command(data)
-        print("Received command from client:", client_address, "Command:", command)
-
-        response = _handle_command(command)
+        response = _handle_command(data, client_address)
         print("Sending response to client:", client_address, "Response:", response)
         writer.write(response)
         await writer.drain()
@@ -45,14 +40,22 @@ async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWri
     print("Client disconnected:", client_address)
 
 
-def _parse_command(data: bytes):
-    '''Parse the incoming data from the client and determine which Redis command is being executed.
-    
-    If the command is recognized, return a tuple containing the command name and any arguments. 
-    
-    If the command is not recognized, return None.
+COMMAND_HANDLERS = {
+    b'PING': ping.handle,
+    b'ECHO': echo.handle,
+    b'SET': set.handle,
+    b'GET': get.handle,
+    b'RPUSH': rpush.handle,
+    b'LRANGE': lrange.handle,
+}
 
-    Assuming the received command is in correct RESP format, here's how the command will be parsed:
+def _handle_command(data: bytes, client_address: str) -> bytes:
+    '''Execute a Redis command from raw RESP data and return the response.
+
+    Parses the RESP-encoded data, looks up the command handler, and returns the response bytes.
+    Returns an error response if the data is malformed or the command is unknown.
+
+    Assuming the received command is in correct RESP format, here's how the data will be parsed:
     
     For PING: data.split(CRLF) will yield [b'*1', b'$4', b'PING', b'']
     - parts[0] = *N (array count)
@@ -67,87 +70,19 @@ def _parse_command(data: bytes):
     - parts[4] = argument
     - ... and so on for additional arguments
     '''
+    # Parse the command and arguments from the incoming data
     parts = data.split(CRLF)
-    command = parts[2] if len(parts) > 2 else None
-    args = parts[4::2] 
+    if len(parts) < 3:
+        return b"-ERR invalid command\r\n"
+    command = parts[2]
+    args = parts[4::2]
 
-    if command == b'PING':
-        return "PING"
-    elif command == b'ECHO':
-        return "ECHO", args
-    elif command == b'SET':
-        return "SET", args
-    elif command == b'GET':
-        return "GET", args
-    elif command == b'RPUSH':
-        return "RPUSH", args
-    elif command == b'LRANGE':
-        return "LRANGE", args
-    else:
-        return None
+    print("Received command from client:", client_address, "Command:", command, "Arguments:", args)
+    handler = COMMAND_HANDLERS.get(command)
+    if handler:
+        return handler(args, data_store)
 
-
-def _handle_command(command: str | tuple | None):
-    if command == "PING":
-        return PONG
-    elif isinstance(command, tuple) and command[0] == "ECHO":
-        if len(command[1]) != 1:
-            return b"-ERR wrong number of arguments for 'ECHO' command\r\n"
-        return to_resp_bulk_string(command[1][0])
-    elif isinstance(command, tuple) and command[0] == "SET":
-        key = command[1][0]
-        value = command[1][1]
-        expiry_unit = command[1][2] if len(command[1]) > 2 else None
-        expiry_value = command[1][3] if len(command[1]) > 3 else None
-
-        # Handle optional expiry parameters
-        try:
-            expires_at = compute_expiry(expiry_unit, expiry_value)
-        except ValueError as e:
-            return f"-ERR {e}\r\n".encode()
-
-        data_store[key] = (value, expires_at)
-
-        return OK
-    elif isinstance(command, tuple) and command[0] == "GET":
-        key = command[1][0]
-        value = data_store.get(key)
-        if value is not None and (value[1] is None or value[1] > time.time()):
-            return to_resp_bulk_string(value[0])
-        else:
-            return NIL
-    elif isinstance(command, tuple) and command[0] == "RPUSH":
-        key = command[1][0]
-        values = command[1][1:]
-        if key not in data_store:
-            data_store[key] = ([], None)
-        data_store[key][0].extend(values)
-        return to_resp_integer(len(data_store[key][0]))
-    elif isinstance(command, tuple) and command[0] == "LRANGE":
-        key = command[1][0]
-        start = int(command[1][1])
-        stop = int(command[1][2])
-
-        # If list is empty or key does not exist, return empty array
-        if key not in data_store:
-            return EMPTY_ARRAY
-        
-        # If start index is greater than or equal to the length of the list, return empty array
-        if start >= len(data_store[key][0]):
-            return EMPTY_ARRAY
-        
-        # If stop index is greater than or equal to the length of the list, adjust it to the last index
-        if stop >= len(data_store[key][0]):
-            stop = len(data_store[key][0]) - 1
-
-        # If start index is greater than stop index, return empty array
-        if start > stop:
-            return EMPTY_ARRAY
-
-        values = data_store[key][0]
-        return to_resp_array(values[start:stop+1])
-    else:
-        return b"-ERR unknown command\r\n"
+    return b"-ERR unknown command\r\n"
 
 
 if __name__ == "__main__":
