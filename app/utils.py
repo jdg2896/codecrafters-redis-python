@@ -6,22 +6,24 @@ from .constants import CRLF
 __all__ = ["compute_expiry", "get_client_address", "to_resp_bulk_string", "to_resp_integer"]
 
 # Utility functions
-def compute_expiry(expiry_unit: bytes | None, expiry_value: int | None):
+def compute_expiry(expiry_unit: bytes | None, expiry_value: int | None) -> float | None:
     '''Returns the expiry time for a key in the data store. 
     
     The expiry time can be specified in milliseconds (PX) or seconds (EX).'''
+    if not expiry_unit or not expiry_value:
+        return None
+
     try:
-        expires_at = None
-        if expiry_unit and expiry_value:
-            ms = int(expiry_value)
-            if expiry_unit == b'PX':
-                expires_at = time.time() + ms / 1000
-            elif expiry_unit == b'EX':
-                expires_at = time.time() + ms
-        
-        return expires_at
+        ms = int(expiry_value)
     except ValueError:
-        return b"-ERR invalid expiry time\r\n"
+        raise ValueError(f"invalid expiry time: {expiry_value!r}")
+    
+    if expiry_unit.upper() == b'PX':
+        return time.time() + ms / 1000
+    elif expiry_unit.upper() == b'EX':
+        return time.time() + ms
+    else:
+        raise ValueError(f"unknown expiry unit: {expiry_unit!r}")
 
 
 def get_client_address(writer: asyncio.StreamWriter):

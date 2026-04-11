@@ -93,7 +93,10 @@ def _handle_command(command: str | tuple | None):
         expiry_value = command[1][3] if len(command[1]) > 3 else None
 
         # Handle optional expiry parameters
-        expires_at = compute_expiry(expiry_unit, expiry_value)
+        try:
+            expires_at = compute_expiry(expiry_unit, expiry_value)
+        except ValueError as e:
+            return f"-ERR {e}\r\n".encode()
 
         data_store[key] = (value, expires_at)
 
