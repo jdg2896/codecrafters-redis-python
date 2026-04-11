@@ -1,5 +1,4 @@
 import asyncio
-from calendar import c
 
 from app.constants import CRLF
 from app.types import DataStore
