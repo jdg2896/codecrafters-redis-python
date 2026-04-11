@@ -14,7 +14,7 @@ def handle(args: list[bytes], data_store: DataStore) -> bytes:
     if not list:
         return NIL
     for _ in range(number):
-        values = list.pop(0)
+        values += list.pop(0)
     
     print("LPOP result for key:", key, "Value:", values)
     if len(values) == 1:
