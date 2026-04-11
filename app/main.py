@@ -2,7 +2,7 @@ import asyncio
 import time
 
 from .constants import CRLF, PONG, OK, NIL
-from .utils import compute_expiry, get_client_address, to_bulk_string, to_resp_integer
+from .utils import compute_expiry, get_client_address, to_resp_bulk_string, to_resp_integer
 
 # In-memory data store for SET and GET commands
 data_store = {}
@@ -85,7 +85,7 @@ def _handle_command(command: str | tuple | None):
     elif isinstance(command, tuple) and command[0] == "ECHO":
         if len(command[1]) != 1:
             return b"-ERR wrong number of arguments for 'ECHO' command\r\n"
-        return to_bulk_string(command[1][0])
+        return to_resp_bulk_string(command[1][0])
     elif isinstance(command, tuple) and command[0] == "SET":
         key = command[1][0]
         value = command[1][1]
@@ -102,7 +102,7 @@ def _handle_command(command: str | tuple | None):
         key = command[1][0]
         value = data_store.get(key)
         if value is not None and (value[1] is None or value[1] > time.time()):
-            return to_bulk_string(value[0])
+            return to_resp_bulk_string(value[0])
         else:
             return NIL
     elif isinstance(command, tuple) and command[0] == "RPUSH":

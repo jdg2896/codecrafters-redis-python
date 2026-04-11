@@ -3,7 +3,7 @@ import time
 
 from .constants import CRLF
 
-__all__ = ["compute_expiry", "get_client_address", "to_bulk_string", "to_resp_integer"]
+__all__ = ["compute_expiry", "get_client_address", "to_resp_bulk_string", "to_resp_integer"]
 
 # Utility functions
 def compute_expiry(expiry_unit: bytes | None, expiry_value: int | None):
@@ -28,7 +28,7 @@ def get_client_address(writer: asyncio.StreamWriter):
     return writer.get_extra_info("peername")
 
 
-def to_bulk_string(data: bytes):
+def to_resp_bulk_string(data: bytes):
     return b"$" + str(len(data)).encode() + CRLF + data + CRLF
 
 
