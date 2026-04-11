@@ -5,6 +5,7 @@ from app.types import DataStore
 from app.utils import get_client_address
 from app.commands import (
     llen,
+    lpop,
     lpush,
     ping,
     echo,
@@ -48,17 +49,6 @@ async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWri
     print("Client disconnected:", client_address)
 
 
-COMMAND_HANDLERS = {
-    b'PING': ping.handle,
-    b'ECHO': echo.handle,
-    b'SET': set.handle,
-    b'GET': get.handle,
-    b'RPUSH': rpush.handle,
-    b'LRANGE': lrange.handle,
-    b'LPUSH': lpush.handle,
-    b'LLEN': llen.handle,
-}
-
 def _handle_command(data: bytes, client_address: str) -> bytes:
     '''Execute a Redis command from raw RESP data and return the response.
 
@@ -88,6 +78,17 @@ def _handle_command(data: bytes, client_address: str) -> bytes:
     args = parts[4::2]
 
     print("Received command from client:", client_address, "Command:", command, "Arguments:", args)
+    COMMAND_HANDLERS = {
+        b'PING': ping.handle,
+        b'ECHO': echo.handle,
+        b'SET': set.handle,
+        b'GET': get.handle,
+        b'RPUSH': rpush.handle,
+        b'LRANGE': lrange.handle,
+        b'LPUSH': lpush.handle,
+        b'LLEN': llen.handle,
+        b'LPOP': lpop.handle,
+    }
     handler = COMMAND_HANDLERS.get(command)
     if handler:
         return handler(args, data_store)
