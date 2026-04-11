@@ -1,7 +1,7 @@
 import asyncio
 import time
 
-from app.constants import NIL
+from app.constants import NULL_ARRAY
 from app.types import DataStore
 from app.utils import to_resp_array
 
@@ -20,6 +20,6 @@ async def handle(args: list[bytes], data_store: DataStore) -> bytes:
                 return to_resp_array([key, value])
 
         if time.time() >= deadline:
-            return NIL
+            return NULL_ARRAY
 
         await asyncio.sleep(POLL_INTERVAL)
