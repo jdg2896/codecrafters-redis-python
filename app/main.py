@@ -1,11 +1,8 @@
 import asyncio
 import time
 
-# Constants for Redis protocol
-PONG = b"+PONG\r\n"
-OK = b"+OK\r\n"
-NIL = b"$-1\r\n"
-CRLF = b"\r\n"
+from .constants import CRLF, PONG, OK, NIL
+from .utils import compute_expiry, get_client_address, to_bulk_string, to_resp_integer
 
 # In-memory data store for SET and GET commands
 data_store = {}
@@ -22,23 +19,24 @@ async def main():
 
 async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     '''Handle an incoming client connection, read commands from the client, and send responses back to the client.'''
-    print("Client connected:", _get_client_address(writer))
+    client_address = get_client_address(writer)
+    print("Client connected:", client_address)
     while True:
         data = await reader.read(1024)
         if not data:
             break
 
         command = _parse_command(data)
-        print("Received command from client:", _get_client_address(writer), "Command:", command)
+        print("Received command from client:", client_address, "Command:", command)
 
         response = _handle_command(command)
-        print("Sending response to client:", _get_client_address(writer), "Response:", response)
+        print("Sending response to client:", client_address, "Response:", response)
         writer.write(response)
         await writer.drain()
 
     writer.close()
     await writer.wait_closed()
-    print("Client disconnected:", _get_client_address(writer))
+    print("Client disconnected:", client_address)
 
 
 def _parse_command(data: bytes):
@@ -87,7 +85,7 @@ def _handle_command(command: str | tuple | None):
     elif isinstance(command, tuple) and command[0] == "ECHO":
         if len(command[1]) != 1:
             return b"-ERR wrong number of arguments for 'ECHO' command\r\n"
-        return _to_bulk_string(command[1][0])
+        return to_bulk_string(command[1][0])
     elif isinstance(command, tuple) and command[0] == "SET":
         key = command[1][0]
         value = command[1][1]
@@ -95,7 +93,7 @@ def _handle_command(command: str | tuple | None):
         expiry_value = command[1][3] if len(command[1]) > 3 else None
 
         # Handle optional expiry parameters
-        expires_at = _set_expiry(key, expiry_unit, expiry_value)
+        expires_at = compute_expiry(expiry_unit, expiry_value)
 
         data_store[key] = (value, expires_at)
 
@@ -104,7 +102,7 @@ def _handle_command(command: str | tuple | None):
         key = command[1][0]
         value = data_store.get(key)
         if value is not None and (value[1] is None or value[1] > time.time()):
-            return _to_bulk_string(value[0])
+            return to_bulk_string(value[0])
         else:
             return NIL
     elif isinstance(command, tuple) and command[0] == "RPUSH":
@@ -113,40 +111,9 @@ def _handle_command(command: str | tuple | None):
         if key not in data_store:
             data_store[key] = ([], None)
         data_store[key][0].extend(values)
-        return _to_resp_integer(len(data_store[key][0]))
+        return to_resp_integer(len(data_store[key][0]))
     else:
         return b"-ERR unknown command\r\n"
-
-
-def _set_expiry(key: bytes, expiry_unit: bytes | None, expiry_value: int | None):
-    '''Returns the expiry time for a key in the data store. 
-    
-    The expiry time can be specified in milliseconds (PX) or seconds (EX).'''
-    try:
-        expires_at = None
-        if expiry_unit and expiry_value:
-            ms = int(expiry_value)
-            if expiry_unit == b'PX':
-                expires_at = time.time() + ms / 1000
-            elif expiry_unit == b'EX':
-                expires_at = time.time() + ms
-        
-        return expires_at
-    except ValueError:
-        return b"-ERR invalid expiry time\r\n"
-
-
-# Helper functions
-def _get_client_address(writer: asyncio.StreamWriter):
-    return writer.get_extra_info("peername")
-
-
-def _to_bulk_string(data: bytes):
-    return b"$" + str(len(data)).encode() + CRLF + data + CRLF
-
-
-def _to_resp_integer(value: int):
-    return b":" + str(value).encode() + CRLF
 
 
 if __name__ == "__main__":
