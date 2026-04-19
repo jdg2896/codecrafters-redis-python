@@ -8,6 +8,7 @@ __all__ = [
     "compute_expiry",
     "get_client_address",
     "to_resp_bulk_string",
+    "to_resp_simple_string",
     "to_resp_integer",
     "to_resp_array",
 ]
@@ -40,6 +41,10 @@ def get_client_address(writer: asyncio.StreamWriter):
 
 def to_resp_bulk_string(data: bytes):
     return b"$" + str(len(data)).encode() + CRLF + data + CRLF
+
+
+def to_resp_simple_string(data: bytes):
+    return b"+" + data + CRLF
 
 
 def to_resp_integer(value: int):

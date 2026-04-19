@@ -14,6 +14,7 @@ from app.commands import (
     get,
     rpush,
     lrange,
+    type as type_command, # type is a reserved keyword, so we import it as type_command
 )
 
 
@@ -90,6 +91,7 @@ async def _handle_command(data: bytes, client_address: str) -> bytes:
         b'LLEN': llen.handle,
         b'LPOP': lpop.handle,
         b'BLPOP': blpop.handle,
+        b'TYPE': type_command.handle,
     }
     handler = COMMAND_HANDLERS.get(command)
     if handler:

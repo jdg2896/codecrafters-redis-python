@@ -19,6 +19,7 @@ async def handle(args: list[bytes], data_store: DataStore) -> bytes:
                 value = list.pop(0)
                 return to_resp_array([key, value])
 
+        # If the key is not found or the list is empty, check if the timeout has been reached
         if time.time() >= deadline:
             return NULL_ARRAY
 
