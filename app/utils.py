@@ -54,7 +54,7 @@ def to_resp_integer(value: int):
 def to_resp_array(items: list[bytes]):
     resp = b"*" + str(len(items)).encode() + CRLF
     for item in items:
-        resp += to_resp_bulk_string(item)
+        resp += item
     return resp
 
 def to_resp_error(message: bytes):

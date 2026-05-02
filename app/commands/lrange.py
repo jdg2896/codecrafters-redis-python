@@ -1,6 +1,6 @@
 from app.constants import EMPTY_ARRAY
 from app.types import DataStore
-from app.utils import to_resp_array
+from app.utils import to_resp_array, to_resp_bulk_string
 
 
 def handle(args: list[bytes], data_store: DataStore) -> bytes:
@@ -42,4 +42,4 @@ def handle(args: list[bytes], data_store: DataStore) -> bytes:
 
     values = data_store[key][0]
     print("LRANGE result for key:", key, "Values:", values[start:stop+1])
-    return to_resp_array(values[start:stop+1])
+    return to_resp_array([to_resp_bulk_string(v) for v in values[start:stop+1]])

@@ -18,4 +18,4 @@ def handle(args: list[bytes], data_store: DataStore) -> bytes:
 
     if len(values) == 1 and len(args) == 1:  # no count arg → return single bulk string
         return to_resp_bulk_string(values[0])
-    return to_resp_array(values)
+    return to_resp_array([to_resp_bulk_string(v) for v in values])
