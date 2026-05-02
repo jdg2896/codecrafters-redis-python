@@ -1,3 +1,5 @@
+from time import time
+
 from app.types import DataStore
 from app.utils import to_resp_bulk_string, to_resp_error
 
@@ -14,11 +16,14 @@ def handle(args: list[bytes], data_store: DataStore) -> bytes:
 	if entry_id == b"0-0":
 		return to_resp_error(ENTRY_ID_NOT_ZERO_ERROR)
 	
+	if entry_id == b"*":
+		entry_id = autogenerate_entry_id(stream)
+	
 	# The entry ID can be specified as either a specific ID in the format of <millisecondsTime>-<sequenceNumber> or as an auto-generated ID using the special ID of '*'.
 	new_milliseconds_time, new_sequence_number = (
 		int(x) if x != b'*' else '*' for x in entry_id.split(b'-')
 	)
-	if new_sequence_number == '*':
+	if new_sequence_number == "*":
 		new_sequence_number = autogenerate_sequence_number(
 			stream,
 			int(new_milliseconds_time)
@@ -67,3 +72,14 @@ def autogenerate_sequence_number(stream: list[tuple[bytes, list[bytes]]], millis
 	if milliseconds_time == last_milliseconds_time:
 		return last_sequence_number + 1
 	return 0
+
+def autogenerate_entry_id(stream: list[tuple[bytes, list[bytes]]]) -> bytes:
+	'''
+	Autogenerates an entry ID for a new stream entry based on the existing entries in the stream.
+	The entry ID is in the format of <millisecondsTime>-<sequenceNumber>.
+	- The millisecondsTime part is the current time in milliseconds.
+	- The sequenceNumber part is generated using the autogenerate_sequence_number function based on the existing entries in the stream with the same millisecondsTime part.
+	'''
+	milliseconds_time = int(time() * 1000)
+	sequence_number = autogenerate_sequence_number(stream, milliseconds_time)
+	return f"{milliseconds_time}-{sequence_number}".encode()
