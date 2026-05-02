@@ -4,26 +4,30 @@ from app.utils import to_resp_array, to_resp_bulk_string
 
 
 def handle(args: list[bytes], data_store: DataStore) -> bytes:
-    # args format: [b'streams', stream_key, id]
-    stream_key = args[1]
-    id = args[2]
-    stream = data_store.get(stream_key, ([], None))[0]
+    # args format: [b'streams', key1, key2, ..., id1, id2, ...]
+    streams_args = args[1:]
+    n = len(streams_args) // 2
+    stream_keys = streams_args[:n]
+    ids = streams_args[n:]
 
-    # Return the entries with IDs greater than the specified ID. The ID is a string in the format <millisecondsTime>-<sequenceNumber>.
-    entries = [
-        (entry_id, key_value_pairs) for entry_id, key_value_pairs in stream
-        if tuple(map(int, entry_id.split(b'-'))) > tuple(map(int, id.split(b'-')))
-    ]
-    if not entries:
-        return NONE
-    return to_resp_array([
-        to_resp_array([
-            to_resp_bulk_string(stream_key),
-            to_resp_array([
+    result = []
+    for stream_key, id in zip(stream_keys, ids):
+        stream = data_store.get(stream_key, ([], None))[0]
+        entries = [
+            (entry_id, key_value_pairs) for entry_id, key_value_pairs in stream
+            if tuple(map(int, entry_id.split(b'-'))) > tuple(map(int, id.split(b'-')))
+        ]
+        if entries:
+            result.append(
                 to_resp_array([
-                    to_resp_bulk_string(entry_id),
-                    to_resp_array([to_resp_bulk_string(kv) for kv in key_value_pairs])
-                ]) for entry_id, key_value_pairs in entries
-            ])
-        ])
-    ])
+                    to_resp_bulk_string(stream_key),
+                    to_resp_array([
+                        to_resp_array([
+                            to_resp_bulk_string(entry_id),
+                            to_resp_array([to_resp_bulk_string(kv) for kv in key_value_pairs])
+                        ]) for entry_id, key_value_pairs in entries
+                    ])
+                ])
+            )
+
+    return to_resp_array(result) if result else NONE
