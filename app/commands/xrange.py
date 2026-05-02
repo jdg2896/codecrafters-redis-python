@@ -3,6 +3,7 @@ from app.types import DataStore
 from app.utils import to_resp_array, to_resp_bulk_string
 
 MAXIMUM_SEQUENCE_NUMBER = 2**64 - 1 # 18446744073709551615
+MAXIMUM_MILLISECONDS_TIME = 2**63 - 1 # 9223372036854775807
 
 
 def handle(args: list[bytes], data_store: DataStore) -> bytes:
@@ -13,7 +14,8 @@ def handle(args: list[bytes], data_store: DataStore) -> bytes:
 
     if start == b"-":
         start = b"0-0"
-
+    if end == b"+":
+        end = f"{MAXIMUM_MILLISECONDS_TIME}-{MAXIMUM_SEQUENCE_NUMBER}".encode()
     start_milliseconds_time, start_sequence_number = map(int, start.split(b'-'))
     end_milliseconds_time, end_sequence_number = map(int, end.split(b'-'))
 
