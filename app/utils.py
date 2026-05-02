@@ -56,3 +56,6 @@ def to_resp_array(items: list[bytes]):
     for item in items:
         resp += to_resp_bulk_string(item)
     return resp
+
+def to_resp_error(message: bytes):
+    return b"-" + message + CRLF
