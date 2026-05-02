@@ -16,6 +16,7 @@ from app.commands import (
     lrange,
     type as type_command, # type is a reserved keyword, so we import it as type_command
     xadd,
+    xrange,
 )
 
 
@@ -94,6 +95,7 @@ async def _handle_command(data: bytes, client_address: str) -> bytes:
         b'BLPOP': blpop.handle,
         b'TYPE': type_command.handle,
         b'XADD': xadd.handle,
+        b'XRANGE': xrange.handle,
     }
     handler = COMMAND_HANDLERS.get(command)
     if handler:
