@@ -11,6 +11,9 @@ def handle(args: list[bytes], data_store: DataStore) -> bytes:
     end = args[2]
     stream = data_store.get(stream_key, ([], None))[0]
 
+    if start == b"-":
+        start = b"0-0"
+
     start_milliseconds_time, start_sequence_number = map(int, start.split(b'-'))
     end_milliseconds_time, end_sequence_number = map(int, end.split(b'-'))
 
