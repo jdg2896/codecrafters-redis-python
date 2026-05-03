@@ -18,6 +18,7 @@ from app.commands import (
     xadd,
     xrange,
     xread,
+    incr,
 )
 
 
@@ -98,6 +99,7 @@ async def _handle_command(data: bytes, client_address: str) -> bytes:
         b'XADD': xadd.handle,
         b'XRANGE': xrange.handle,
         b'XREAD': xread.handle,
+        b'INCR': incr.handle,
     }
     handler = COMMAND_HANDLERS.get(command)
     if handler:
