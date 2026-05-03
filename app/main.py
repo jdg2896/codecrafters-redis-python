@@ -1,28 +1,9 @@
 import asyncio
 
-from app.constants import CRLF, OK, QUEUED
+from app.constants import CRLF, QUEUED
 from app.types import DataStore
-from app.utils import get_client_address, to_resp_error
-from app.commands import (
-    blpop,
-    llen,
-    lpop,
-    lpush,
-    ping,
-    echo,
-    set,
-    get,
-    rpush,
-    lrange,
-    type as type_command, # type is a reserved keyword, so we import it as type_command
-    xadd,
-    xrange,
-    xread,
-    incr,
-    multi,
-    exec,
-)
-
+from app.utils import get_client_address
+from app.commands import COMMAND_HANDLERS
 
 # In-memory data store for SET and GET commands
 data_store: DataStore = {}
@@ -92,29 +73,12 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
         return QUEUED
 
     print("Received command from client:", client_address, "Command:", command, "Arguments:", args)
-    COMMAND_HANDLERS = {
-        b'PING': ping.handle,
-        b'ECHO': echo.handle,
-        b'SET': set.handle,
-        b'GET': get.handle,
-        b'RPUSH': rpush.handle,
-        b'LRANGE': lrange.handle,
-        b'LPUSH': lpush.handle,
-        b'LLEN': llen.handle,
-        b'LPOP': lpop.handle,
-        b'BLPOP': blpop.handle,
-        b'TYPE': type_command.handle,
-        b'XADD': xadd.handle,
-        b'XRANGE': xrange.handle,
-        b'XREAD': xread.handle,
-        b'INCR': incr.handle,
-        b'MULTI': multi.handle,
-        b'EXEC': exec.handle,
-    }
     handler = COMMAND_HANDLERS.get(command)
     if handler:
-        if command.upper() in (b'MULTI', b'EXEC'):
+        if command.upper() in (b'MULTI'):
             result = handler(args, data_store, connection)
+        elif command.upper() in (b'EXEC'):
+            result = await handler(args, data_store, connection, COMMAND_HANDLERS)
         else:
             result = handler(args, data_store)
         if asyncio.iscoroutine(result):
