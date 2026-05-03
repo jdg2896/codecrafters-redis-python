@@ -99,6 +99,7 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
         elif command.upper() == b'DISCARD':
             connection["in_multi"] = False
             connection["queue"] = []
+            connection["watched_keys"] = {}
             return OK
         elif command.upper() == b'WATCH':
             return to_resp_error(b"ERR WATCH inside MULTI is not allowed")
