@@ -1,6 +1,6 @@
 from app.constants import OK
 from app.types import DataStore
-from app.utils import compute_expiry
+from app.utils import compute_expiry, to_resp_error
 
 
 def handle(args: list[bytes], data_store: DataStore) -> bytes:
@@ -13,7 +13,7 @@ def handle(args: list[bytes], data_store: DataStore) -> bytes:
 	try:
 		expires_at = compute_expiry(expiry_unit, expiry_value)
 	except ValueError as e:
-		return f"-ERR {e}\r\n".encode()
+		return to_resp_error(f"ERR {e}".encode())
 
 	data_store[key] = (value, expires_at)
 

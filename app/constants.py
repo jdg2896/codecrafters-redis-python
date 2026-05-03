@@ -1,9 +1,11 @@
-# Constants for Redis protocol
-PONG = b"+PONG\r\n"
-OK = b"+OK\r\n"
-NIL = b"$-1\r\n"
-NONE = b"+none\r\n"
+# RESP protocol constants
 CRLF = b"\r\n"
-EMPTY_ARRAY = b"*0\r\n"
-NULL_ARRAY = b"*-1\r\n"
-QUEUED = b"+QUEUED\r\n"
+
+# Common RESP responses
+PONG = b"+PONG" + CRLF
+OK = b"+OK" + CRLF
+NONE = b"+none" + CRLF
+QUEUED = b"+QUEUED" + CRLF
+NIL = b"$-1" + CRLF
+EMPTY_ARRAY = b"*0" + CRLF
+NULL_ARRAY = b"*-1" + CRLF

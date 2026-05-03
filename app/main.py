@@ -63,7 +63,7 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
     # Parse the command and arguments from the incoming data
     parts = data.split(CRLF)
     if len(parts) < 3:
-        return b"-ERR invalid command\r\n"
+        return to_resp_error(b"ERR invalid command")
     command = parts[2]
     args = parts[4::2]
 
@@ -106,7 +106,7 @@ async def _dispatch(command: bytes, args: list[bytes], data_store: DataStore) ->
         if asyncio.iscoroutine(result):
             return await result
         return result
-    return b"-ERR unknown command\r\n"
+    return to_resp_error(b"ERR unknown command")
 
 
 if __name__ == "__main__":
