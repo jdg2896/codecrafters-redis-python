@@ -116,6 +116,10 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
         for key in args:
             connection["watched_keys"][key] = data_store.get(key)  # store snapshot
         return OK
+    
+    if command.upper() == b'UNWATCH':
+        connection["watched_keys"] = {}
+        return OK
 
     return await _dispatch(command, args, data_store)
 
