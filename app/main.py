@@ -1,8 +1,8 @@
 import asyncio
 
-from app.constants import CRLF, QUEUED
+from app.constants import CRLF, OK, QUEUED
 from app.types import DataStore
-from app.utils import get_client_address
+from app.utils import get_client_address, to_resp_array, to_resp_error
 from app.commands import COMMAND_HANDLERS
 
 # In-memory data store for SET and GET commands
@@ -67,24 +67,38 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
     command = parts[2]
     args = parts[4::2]
 
-    # While in a transaction, queue all commands except EXEC
-    if connection["in_multi"] and command.upper() != b'EXEC':
-        connection["queue"].append((command, args))
-        return QUEUED
-
     print("Received command from client:", client_address, "Command:", command, "Arguments:", args)
+
+    if command.upper() == b'MULTI':
+        connection["in_multi"] = True
+        connection["queue"] = []
+        return OK
+
+    if connection["in_multi"]:
+        if command.upper() == b'EXEC':
+            connection["in_multi"] = False
+            results = []
+            for queued_cmd, queued_args in connection["queue"]:
+                results.append(await _dispatch(queued_cmd, queued_args, data_store))
+            connection["queue"] = []
+            return to_resp_array(results)
+        else:
+            connection["queue"].append((command, args))
+            return QUEUED
+
+    if command.upper() == b'EXEC':
+        return to_resp_error(b"ERR EXEC without MULTI")
+
+    return await _dispatch(command, args, data_store)
+
+
+async def _dispatch(command: bytes, args: list[bytes], data_store: DataStore) -> bytes:
     handler = COMMAND_HANDLERS.get(command)
     if handler:
-        if command.upper() in (b'MULTI'):
-            result = handler(args, data_store, connection)
-        elif command.upper() in (b'EXEC'):
-            result = await handler(args, data_store, connection, COMMAND_HANDLERS)
-        else:
-            result = handler(args, data_store)
+        result = handler(args, data_store)
         if asyncio.iscoroutine(result):
             return await result
         return result
-
     return b"-ERR unknown command\r\n"
 
 

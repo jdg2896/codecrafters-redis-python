@@ -14,11 +14,10 @@ from app.commands import (
     xrange,
     xread,
     incr,
-    multi,
-    exec,
 )
 
-# Command handlers mapping command names to their respective handler functions
+# Command handlers mapping command names to their respective handler functions.
+# MULTI and EXEC are intentionally excluded — they are handled at the connection layer in main.py.
 COMMAND_HANDLERS = {
     b'PING': ping.handle,
     b'ECHO': echo.handle,
@@ -35,6 +34,4 @@ COMMAND_HANDLERS = {
     b'XRANGE': xrange.handle,
     b'XREAD': xread.handle,
     b'INCR': incr.handle,
-    b'MULTI': multi.handle,
-    b'EXEC': exec.handle,
 }
