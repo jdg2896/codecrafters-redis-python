@@ -1,4 +1,5 @@
 import asyncio
+from calendar import c
 
 from app.constants import CRLF, OK, QUEUED
 from app.types import DataStore
@@ -22,7 +23,11 @@ async def main():
 async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     '''Handle an incoming client connection, read commands from the client, and send responses back to the client.'''
     client_address = get_client_address(writer)
-    connection = {"in_multi": False, "queue": []}  # per-connection state
+    connection = {
+        "in_multi": False,
+        "queue": [],
+        "watched_keys": [],
+    }  # per-connection state
     print("Client connected:", client_address)
     while True:
         data = await reader.read(1024)
@@ -86,6 +91,8 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
             connection["in_multi"] = False
             connection["queue"] = []
             return OK
+        elif command.upper() == b'WATCH':
+            return to_resp_error(b"ERR WATCH inside MULTI is not allowed")
         else:
             connection["queue"].append((command, args))
             return QUEUED
@@ -97,6 +104,9 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
         return to_resp_error(b"ERR DISCARD without MULTI")
     
     if command.upper() == b'WATCH':
+        watched_keys = connection.get("watched_keys", [])
+        watched_keys.extend(args)
+        connection["watched_keys"] = watched_keys
         return OK
 
     return await _dispatch(command, args, data_store)
