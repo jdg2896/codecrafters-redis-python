@@ -1,7 +1,6 @@
 import asyncio
-from calendar import c
 
-from app.constants import CRLF, OK, QUEUED
+from app.constants import CRLF, NULL_ARRAY, OK, QUEUED
 from app.types import DataStore
 from app.utils import get_client_address, to_resp_array, to_resp_error
 from app.commands import COMMAND_HANDLERS
@@ -26,7 +25,7 @@ async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWri
     connection = {
         "in_multi": False,
         "queue": [],
-        "watched_keys": [],
+        "watched_keys": {},
     }  # per-connection state
     print("Client connected:", client_address)
     while True:
@@ -73,6 +72,7 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
     args = parts[4::2]
 
     print("Received command from client:", client_address, "Command:", command, "Arguments:", args)
+    print("Current connection state:", connection)
 
     if command.upper() == b'MULTI':
         connection["in_multi"] = True
@@ -83,6 +83,15 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
         if command.upper() == b'EXEC':
             connection["in_multi"] = False
             results = []
+            # EXEC: check if any watched key changed since WATCH
+            if command.upper() == b'EXEC':
+                for key, snapshot in connection["watched_keys"].items():
+                    if data_store.get(key) != snapshot:
+                        # abort — return null array
+                        connection["in_multi"] = False
+                        connection["queue"] = []
+                        connection["watched_keys"] = {}
+                        return NULL_ARRAY
             for queued_cmd, queued_args in connection["queue"]:
                 results.append(await _dispatch(queued_cmd, queued_args, data_store))
             connection["queue"] = []
@@ -104,9 +113,8 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
         return to_resp_error(b"ERR DISCARD without MULTI")
     
     if command.upper() == b'WATCH':
-        watched_keys = connection.get("watched_keys", [])
-        watched_keys.extend(args)
-        connection["watched_keys"] = watched_keys
+        for key in args:
+            connection["watched_keys"][key] = data_store.get(key)  # store snapshot
         return OK
 
     return await _dispatch(command, args, data_store)
