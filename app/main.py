@@ -95,6 +95,9 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
     
     if command.upper() == b'DISCARD':
         return to_resp_error(b"ERR DISCARD without MULTI")
+    
+    if command.upper() == b'WATCH':
+        return OK
 
     return await _dispatch(command, args, data_store)
 
