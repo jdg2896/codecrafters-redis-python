@@ -18,7 +18,13 @@ async def handle(args: list[bytes], data_store: DataStore) -> bytes:
     streams_args = args[1:]
     n = len(streams_args) // 2
     stream_keys = streams_args[:n]
-    ids = streams_args[n:]
+    ids = list(streams_args[n:])
+
+    # Resolve '$' to the current last entry ID of each stream
+    for i, (stream_key, id) in enumerate(zip(stream_keys, ids)):
+        if id == b'$':
+            stream = data_store.get(stream_key, ([], None))[0]
+            ids[i] = stream[-1][0] if stream else b'0-0'
 
     if block_timeout_ms is not None:
         deadline = time.time() + block_timeout_ms / 1000 if block_timeout_ms > 0 else float('inf')
