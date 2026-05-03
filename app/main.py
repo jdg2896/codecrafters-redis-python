@@ -82,12 +82,19 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
                 results.append(await _dispatch(queued_cmd, queued_args, data_store))
             connection["queue"] = []
             return to_resp_array(results)
+        elif command.upper() == b'DISCARD':
+            connection["in_multi"] = False
+            connection["queue"] = []
+            return OK
         else:
             connection["queue"].append((command, args))
             return QUEUED
 
     if command.upper() == b'EXEC':
         return to_resp_error(b"ERR EXEC without MULTI")
+    
+    if command.upper() == b'DISCARD':
+        return to_resp_error(b"ERR DISCARD without MULTI")
 
     return await _dispatch(command, args, data_store)
 
