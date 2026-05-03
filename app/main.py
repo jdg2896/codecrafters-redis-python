@@ -81,25 +81,18 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
 
     if connection["in_multi"]:
         if command.upper() == b'EXEC':
-            connection["in_multi"] = False
+            for key, snapshot in connection["watched_keys"].items():
+                if data_store.get(key) != snapshot:
+                    _reset_transaction(connection)
+                    return NULL_ARRAY
+            queue = connection["queue"]
+            _reset_transaction(connection)
             results = []
-            # EXEC: check if any watched key changed since WATCH
-            if command.upper() == b'EXEC':
-                for key, snapshot in connection["watched_keys"].items():
-                    if data_store.get(key) != snapshot:
-                        # abort — return null array
-                        connection["in_multi"] = False
-                        connection["queue"] = []
-                        connection["watched_keys"] = {}
-                        return NULL_ARRAY
-            for queued_cmd, queued_args in connection["queue"]:
+            for queued_cmd, queued_args in queue:
                 results.append(await _dispatch(queued_cmd, queued_args, data_store))
-            connection["queue"] = []
             return to_resp_array(results)
         elif command.upper() == b'DISCARD':
-            connection["in_multi"] = False
-            connection["queue"] = []
-            connection["watched_keys"] = {}
+            _reset_transaction(connection)
             return OK
         elif command.upper() == b'WATCH':
             return to_resp_error(b"ERR WATCH inside MULTI is not allowed")
@@ -109,20 +102,26 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
 
     if command.upper() == b'EXEC':
         return to_resp_error(b"ERR EXEC without MULTI")
-    
+
     if command.upper() == b'DISCARD':
         return to_resp_error(b"ERR DISCARD without MULTI")
-    
+
     if command.upper() == b'WATCH':
         for key in args:
-            connection["watched_keys"][key] = data_store.get(key)  # store snapshot
+            connection["watched_keys"][key] = data_store.get(key)
         return OK
-    
+
     if command.upper() == b'UNWATCH':
         connection["watched_keys"] = {}
         return OK
 
     return await _dispatch(command, args, data_store)
+
+
+def _reset_transaction(connection: dict) -> None:
+    connection["in_multi"] = False
+    connection["queue"] = []
+    connection["watched_keys"] = {}
 
 
 async def _dispatch(command: bytes, args: list[bytes], data_store: DataStore) -> bytes:
