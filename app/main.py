@@ -1,8 +1,8 @@
 import asyncio
 
-from app.constants import CRLF
+from app.constants import CRLF, OK, QUEUED
 from app.types import DataStore
-from app.utils import get_client_address
+from app.utils import get_client_address, to_resp_error
 from app.commands import (
     blpop,
     llen,
@@ -41,13 +41,14 @@ async def main():
 async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     '''Handle an incoming client connection, read commands from the client, and send responses back to the client.'''
     client_address = get_client_address(writer)
+    connection = {"in_multi": False, "queue": []}  # per-connection state
     print("Client connected:", client_address)
     while True:
         data = await reader.read(1024)
         if not data:
             break
 
-        response = await _handle_command(data, client_address)
+        response = await _handle_command(data, client_address, connection)
         print("Sending response to client:", client_address, "Response:", response)
         writer.write(response)
         await writer.drain()
@@ -57,7 +58,7 @@ async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWri
     print("Client disconnected:", client_address)
 
 
-async def _handle_command(data: bytes, client_address: str) -> bytes:
+async def _handle_command(data: bytes, client_address: str, connection: dict) -> bytes:
     '''Execute a Redis command from raw RESP data and return the response.
 
     Parses the RESP-encoded data, looks up the command handler, and returns the response bytes.
@@ -85,6 +86,11 @@ async def _handle_command(data: bytes, client_address: str) -> bytes:
     command = parts[2]
     args = parts[4::2]
 
+    # While in a transaction, queue all commands except EXEC
+    if connection["in_multi"] and command.upper() != b'EXEC':
+        connection["queue"].append((command, args))
+        return QUEUED
+
     print("Received command from client:", client_address, "Command:", command, "Arguments:", args)
     COMMAND_HANDLERS = {
         b'PING': ping.handle,
@@ -107,7 +113,10 @@ async def _handle_command(data: bytes, client_address: str) -> bytes:
     }
     handler = COMMAND_HANDLERS.get(command)
     if handler:
-        result = handler(args, data_store)
+        if command.upper() in (b'MULTI', b'EXEC'):
+            result = handler(args, data_store, connection)
+        else:
+            result = handler(args, data_store)
         if asyncio.iscoroutine(result):
             return await result
         return result
