@@ -1,4 +1,5 @@
 import asyncio
+import argparse
 
 from app.constants import CRLF, NULL_ARRAY, OK, QUEUED
 from app.types import DataStore
@@ -9,10 +10,10 @@ from app.commands import COMMAND_HANDLERS
 data_store: DataStore = {}
 
 
-async def main():
+async def main(port: int):
     '''Start the Redis server and handle incoming client connections using the asyncio event loop.'''
-    print("Starting Redis server on localhost:6379...")
-    server = await asyncio.start_server(_handle_client, "localhost", 6379)
+    print(f"Starting Redis server on localhost:{port}...")
+    server = await asyncio.start_server(_handle_client, "localhost", port)
 
     print("Waiting for client connections...")
     async with server:
@@ -135,4 +136,7 @@ async def _dispatch(command: bytes, args: list[bytes], data_store: DataStore) ->
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=int, default=6379)
+    args = parser.parse_args()
+    asyncio.run(main(args.port))
