@@ -3,7 +3,6 @@ import time
 
 from app.constants import CRLF
 
-
 __all__ = [
     "compute_expiry",
     "get_client_address",
@@ -16,9 +15,9 @@ __all__ = [
 
 # Utility functions
 def compute_expiry(expiry_unit: bytes | None, expiry_value: int | None) -> float | None:
-    '''Returns the expiry time for a key in the data store. 
-    
-    The expiry time can be specified in milliseconds (PX) or seconds (EX).'''
+    """Returns the expiry time for a key in the data store.
+
+    The expiry time can be specified in milliseconds (PX) or seconds (EX)."""
     if not expiry_unit or not expiry_value:
         return None
 
@@ -26,10 +25,10 @@ def compute_expiry(expiry_unit: bytes | None, expiry_value: int | None) -> float
         ms = int(expiry_value)
     except ValueError:
         raise ValueError(f"invalid expiry time: {expiry_value!r}")
-    
-    if expiry_unit.upper() == b'PX':
+
+    if expiry_unit.upper() == b"PX":
         return time.time() + ms / 1000
-    elif expiry_unit.upper() == b'EX':
+    elif expiry_unit.upper() == b"EX":
         return time.time() + ms
     else:
         raise ValueError(f"unknown expiry unit: {expiry_unit!r}")
@@ -56,6 +55,7 @@ def to_resp_array(items: list[bytes]):
     for item in items:
         resp += item
     return resp
+
 
 def to_resp_error(message: bytes):
     return b"-" + message + CRLF

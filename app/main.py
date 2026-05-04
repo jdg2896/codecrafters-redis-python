@@ -1,22 +1,22 @@
-import asyncio
 import argparse
+import asyncio
 
+from app.commands import COMMAND_HANDLERS
+from app.config import server_config
 from app.constants import CRLF, NULL_ARRAY, OK, QUEUED
 from app.types import DataStore
 from app.utils import get_client_address, to_resp_array, to_resp_error
-from app.commands import COMMAND_HANDLERS
-from app.config import server_config
 
 # In-memory data store for SET and GET commands
 data_store: DataStore = {}
 
 
 async def main(port: int, replica_of: str | None) -> None:
-    '''Start the Redis server and handle incoming client connections using the asyncio event loop.'''
+    """Start Redis server and accept client connections using asyncio event loop."""
     print("Server configuration:", {"port": port, "replica_of": replica_of})
-    server_config['replica_of'] = replica_of
+    server_config["replica_of"] = replica_of
     if replica_of:
-        server_config['role'] = 'slave'
+        server_config["role"] = "slave"
 
     print(f"Starting Redis server on localhost:{port}...")
     server = await asyncio.start_server(_handle_client, "localhost", port)
@@ -27,7 +27,7 @@ async def main(port: int, replica_of: str | None) -> None:
 
 
 async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-    '''Handle an incoming client connection, read commands from the client, and send responses back to the client.'''
+    """Handle incoming client connection, read commands, and respond to client."""
     client_address = get_client_address(writer)
     connection = {
         "in_multi": False,
@@ -51,26 +51,27 @@ async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWri
 
 
 async def _handle_command(data: bytes, client_address: str, connection: dict) -> bytes:
-    '''Execute a Redis command from raw RESP data and return the response.
+    """Execute a Redis command from raw RESP data and return the response.
 
-    Parses the RESP-encoded data, looks up the command handler, and returns the response bytes.
+    Parses the RESP-encoded data, processes command, and returns the response bytes.
     Returns an error response if the data is malformed or the command is unknown.
 
-    Assuming the received command is in correct RESP format, here's how the data will be parsed:
-    
+    When received command is in correct RESP format, here's how the data is parsed:
+
     For PING: data.split(CRLF) will yield [b'*1', b'$4', b'PING', b'']
     - parts[0] = *N (array count)
     - parts[1] = $N (command length)
     - parts[2] = command name
 
-    For ECHO and other commands with arguments: data.split(CRLF) will yield [b'*2', b'$4', b'ECHO', b'$N', b'argument', ...]
+    For ECHO and other commands with argument:
+    data.split(CRLF) will yield [b'*2', b'$4', b'ECHO', b'$N', b'argument', ...]
     - parts[0] = *N (array count)
     - parts[1] = $N (command length)
     - parts[2] = command name
     - parts[3] = $N (argument length)
     - parts[4] = argument
     - ... and so on for additional arguments
-    '''
+    """
     # Parse the command and arguments from the incoming data
     parts = data.split(CRLF)
     if len(parts) < 3:
@@ -78,16 +79,23 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
     command = parts[2]
     args = parts[4::2]
 
-    print("Received command from client:", client_address, "Command:", command, "Arguments:", args)
+    print(
+        "Received command from client:",
+        client_address,
+        "Command:",
+        command,
+        "Arguments:",
+        args,
+    )
     print("Current connection state:", connection)
 
-    if command.upper() == b'MULTI':
+    if command.upper() == b"MULTI":
         connection["in_multi"] = True
         connection["queue"] = []
         return OK
 
     if connection["in_multi"]:
-        if command.upper() == b'EXEC':
+        if command.upper() == b"EXEC":
             for key, snapshot in connection["watched_keys"].items():
                 if data_store.get(key) != snapshot:
                     _reset_transaction(connection)
@@ -98,27 +106,27 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
             for queued_cmd, queued_args in queue:
                 results.append(await _dispatch(queued_cmd, queued_args, data_store))
             return to_resp_array(results)
-        elif command.upper() == b'DISCARD':
+        elif command.upper() == b"DISCARD":
             _reset_transaction(connection)
             return OK
-        elif command.upper() == b'WATCH':
+        elif command.upper() == b"WATCH":
             return to_resp_error(b"ERR WATCH inside MULTI is not allowed")
         else:
             connection["queue"].append((command, args))
             return QUEUED
 
-    if command.upper() == b'EXEC':
+    if command.upper() == b"EXEC":
         return to_resp_error(b"ERR EXEC without MULTI")
 
-    if command.upper() == b'DISCARD':
+    if command.upper() == b"DISCARD":
         return to_resp_error(b"ERR DISCARD without MULTI")
 
-    if command.upper() == b'WATCH':
+    if command.upper() == b"WATCH":
         for key in args:
             connection["watched_keys"][key] = data_store.get(key)
         return OK
 
-    if command.upper() == b'UNWATCH':
+    if command.upper() == b"UNWATCH":
         connection["watched_keys"] = {}
         return OK
 

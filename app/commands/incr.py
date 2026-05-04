@@ -1,5 +1,5 @@
 from app.types import DataStore
-from app.utils import to_resp_integer, to_resp_error
+from app.utils import to_resp_error, to_resp_integer
 
 NOT_AN_INTEGER_ERROR = b"ERR value is not an integer or out of range"
 

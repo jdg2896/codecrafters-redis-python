@@ -10,7 +10,7 @@ POLL_INTERVAL = 0.01  # seconds
 
 async def handle(args: list[bytes], data_store: DataStore) -> bytes:
     block_timeout_ms = None
-    if args[0].upper() == b'BLOCK':
+    if args[0].upper() == b"BLOCK":
         block_timeout_ms = int(args[1])
         args = args[2:]
 
@@ -22,12 +22,16 @@ async def handle(args: list[bytes], data_store: DataStore) -> bytes:
 
     # Resolve '$' to the current last entry ID of each stream
     for i, (stream_key, id) in enumerate(zip(stream_keys, ids)):
-        if id == b'$':
+        if id == b"$":
             stream = data_store.get(stream_key, ([], None))[0]
-            ids[i] = stream[-1][0] if stream else b'0-0'
+            ids[i] = stream[-1][0] if stream else b"0-0"
 
     if block_timeout_ms is not None:
-        deadline = time.time() + block_timeout_ms / 1000 if block_timeout_ms > 0 else float('inf')
+        deadline = (
+            time.time() + block_timeout_ms / 1000
+            if block_timeout_ms > 0
+            else float("inf")
+        )
         while True:
             result = _get_entries(stream_keys, ids, data_store)
             if result:
@@ -45,19 +49,32 @@ def _get_entries(stream_keys, ids, data_store):
     for stream_key, id in zip(stream_keys, ids):
         stream = data_store.get(stream_key, ([], None))[0]
         entries = [
-            (entry_id, key_value_pairs) for entry_id, key_value_pairs in stream
-            if tuple(map(int, entry_id.split(b'-'))) > tuple(map(int, id.split(b'-')))
+            (entry_id, key_value_pairs)
+            for entry_id, key_value_pairs in stream
+            if tuple(map(int, entry_id.split(b"-"))) > tuple(map(int, id.split(b"-")))
         ]
         if entries:
             result.append(
-                to_resp_array([
-                    to_resp_bulk_string(stream_key),
-                    to_resp_array([
-                        to_resp_array([
-                            to_resp_bulk_string(entry_id),
-                            to_resp_array([to_resp_bulk_string(kv) for kv in key_value_pairs])
-                        ]) for entry_id, key_value_pairs in entries
-                    ])
-                ])
+                to_resp_array(
+                    [
+                        to_resp_bulk_string(stream_key),
+                        to_resp_array(
+                            [
+                                to_resp_array(
+                                    [
+                                        to_resp_bulk_string(entry_id),
+                                        to_resp_array(
+                                            [
+                                                to_resp_bulk_string(kv)
+                                                for kv in key_value_pairs
+                                            ]
+                                        ),
+                                    ]
+                                )
+                                for entry_id, key_value_pairs in entries
+                            ]
+                        ),
+                    ]
+                )
             )
     return result
