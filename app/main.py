@@ -5,13 +5,19 @@ from app.constants import CRLF, NULL_ARRAY, OK, QUEUED
 from app.types import DataStore
 from app.utils import get_client_address, to_resp_array, to_resp_error
 from app.commands import COMMAND_HANDLERS
+from app.config import server_config
 
 # In-memory data store for SET and GET commands
 data_store: DataStore = {}
 
 
-async def main(port: int):
+async def main(port: int, replica_of: str | None) -> None:
     '''Start the Redis server and handle incoming client connections using the asyncio event loop.'''
+    print("Server configuration:", {"port": port, "replica_of": replica_of})
+    server_config['replica_of'] = replica_of
+    if replica_of:
+        server_config['role'] = 'slave'
+
     print(f"Starting Redis server on localhost:{port}...")
     server = await asyncio.start_server(_handle_client, "localhost", port)
 
@@ -138,5 +144,6 @@ async def _dispatch(command: bytes, args: list[bytes], data_store: DataStore) ->
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=6379)
+    parser.add_argument("--replicaof", type=str, default=None)
     args = parser.parse_args()
-    asyncio.run(main(args.port))
+    asyncio.run(main(args.port, args.replicaof))
