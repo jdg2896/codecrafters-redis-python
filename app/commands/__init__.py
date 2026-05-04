@@ -14,6 +14,7 @@ from app.commands import (
     xrange,
     xread,
     incr,
+    info,
 )
 
 # Command handlers mapping command names to their respective handler functions.
@@ -34,4 +35,5 @@ COMMAND_HANDLERS = {
     b'XRANGE': xrange.handle,
     b'XREAD': xread.handle,
     b'INCR': incr.handle,
+    b'INFO': info.handle,
 }
