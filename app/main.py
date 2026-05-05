@@ -19,13 +19,19 @@ async def main(port: int, replica_of: str | None) -> None:
 
     print("Server configuration:", {"port": port, "replica_of": replica_of})
     server_config["replica_of"] = replica_of
+    replication_task: asyncio.Task | None = None
     if replica_of:
         server_config["role"] = "slave"
-        await replication.handshake_with_master(replica_of, port)
+        master_reader, _ = await replication.handshake_with_master(replica_of, port)
+        replication_task = asyncio.create_task(
+            replication.process_propagated(master_reader, data_store, _dispatch)
+        )
 
     print("Server started. Waiting for client connections...")
     async with server:
         await server.serve_forever()
+    if replication_task:
+        replication_task.cancel()
 
 
 async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
