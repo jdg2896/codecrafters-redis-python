@@ -38,6 +38,11 @@ def get_client_address(writer: asyncio.StreamWriter):
     return writer.get_extra_info("peername")
 
 
+async def send(writer: asyncio.StreamWriter, data: bytes) -> None:
+    writer.write(data)
+    await writer.drain()
+
+
 def to_resp_bulk_string(data: bytes):
     return b"$" + str(len(data)).encode() + CRLF + data + CRLF
 

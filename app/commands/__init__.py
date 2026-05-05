@@ -20,7 +20,7 @@ from app.commands import (
 )
 
 # Command handlers mapping command names to their respective handler functions.
-# MULTI and EXEC are intentionally excluded and handled in main.py.
+# Transaction commands (MULTI/EXEC/DISCARD/WATCH/UNWATCH) live in app/transaction.py.
 COMMAND_HANDLERS = {
     b"PING": ping.handle,
     b"ECHO": echo.handle,

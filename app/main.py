@@ -1,16 +1,12 @@
 import argparse
 import asyncio
 
+from app import replication, transaction
 from app.commands import COMMAND_HANDLERS
 from app.config import server_config
-from app.constants import CRLF, NULL_ARRAY, OK, QUEUED
+from app.constants import CRLF
 from app.types import DataStore
-from app.utils import (
-    get_client_address,
-    to_resp_array,
-    to_resp_bulk_string,
-    to_resp_error,
-)
+from app.utils import get_client_address, send, to_resp_error
 
 # In-memory data store for SET and GET commands
 data_store: DataStore = {}
@@ -25,46 +21,7 @@ async def main(port: int, replica_of: str | None) -> None:
     server_config["replica_of"] = replica_of
     if replica_of:
         server_config["role"] = "slave"
-
-        print("Start handshake with master server:", replica_of)
-        master_host, master_port = replica_of.split()
-        reader, writer = await asyncio.open_connection(master_host, int(master_port))
-        print("Sent PING to master server:", replica_of)
-        writer.write(to_resp_array([to_resp_bulk_string(b"PING")]))
-        await writer.drain()
-        response = await reader.read(1024)
-        print("PING response from master:", response)
-
-        print("Send REPLCONF listening-port to master server:", replica_of)
-        writer.write(
-            to_resp_array(
-                [
-                    to_resp_bulk_string(b"REPLCONF"),
-                    to_resp_bulk_string(b"listening-port"),
-                    to_resp_bulk_string(str(port).encode()),
-                ]
-            )
-        )
-        await writer.drain()
-        response = await reader.read(1024)
-        print("REPLCONF listening-port response from master:", response)
-
-        print("Send REPLCONF capa psync2to master server:", replica_of)
-        writer.write(
-            to_resp_array(
-                [
-                    to_resp_bulk_string(b"REPLCONF"),
-                    to_resp_bulk_string(b"capa"),
-                    to_resp_bulk_string(b"psync2"),
-                ]
-            )
-        )
-        await writer.drain()
-        response = await reader.read(1024)
-        print("REPLCONF capa psync2 response from master:", response)
-
-        writer.close()
-        await writer.wait_closed()
+        await replication.handshake_with_master(replica_of, port)
 
     print("Server started. Waiting for client connections...")
     async with server:
@@ -74,11 +31,7 @@ async def main(port: int, replica_of: str | None) -> None:
 async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     """Handle incoming client connection, read commands, and respond to client."""
     client_address = get_client_address(writer)
-    connection = {
-        "in_multi": False,
-        "queue": [],
-        "watched_keys": {},
-    }  # per-connection state
+    connection = transaction.new_connection_state()
     print("Client connected:", client_address)
     while True:
         data = await reader.read(1024)
@@ -87,8 +40,7 @@ async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWri
 
         response = await _handle_command(data, client_address, connection)
         print("Sending response to client:", client_address, "Response:", response)
-        writer.write(response)
-        await writer.drain()
+        await send(writer, response)
 
     writer.close()
     await writer.wait_closed()
@@ -117,7 +69,6 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
     - parts[4] = argument
     - ... and so on for additional arguments
     """
-    # Parse the command and arguments from the incoming data
     parts = data.split(CRLF)
     if len(parts) < 3:
         return to_resp_error(b"ERR invalid command")
@@ -134,54 +85,13 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
     )
     print("Current connection state:", connection)
 
-    if command.upper() == b"MULTI":
-        connection["in_multi"] = True
-        connection["queue"] = []
-        return OK
-
-    if connection["in_multi"]:
-        if command.upper() == b"EXEC":
-            for key, snapshot in connection["watched_keys"].items():
-                if data_store.get(key) != snapshot:
-                    _reset_transaction(connection)
-                    return NULL_ARRAY
-            queue = connection["queue"]
-            _reset_transaction(connection)
-            results = []
-            for queued_cmd, queued_args in queue:
-                results.append(await _dispatch(queued_cmd, queued_args, data_store))
-            return to_resp_array(results)
-        elif command.upper() == b"DISCARD":
-            _reset_transaction(connection)
-            return OK
-        elif command.upper() == b"WATCH":
-            return to_resp_error(b"ERR WATCH inside MULTI is not allowed")
-        else:
-            connection["queue"].append((command, args))
-            return QUEUED
-
-    if command.upper() == b"EXEC":
-        return to_resp_error(b"ERR EXEC without MULTI")
-
-    if command.upper() == b"DISCARD":
-        return to_resp_error(b"ERR DISCARD without MULTI")
-
-    if command.upper() == b"WATCH":
-        for key in args:
-            connection["watched_keys"][key] = data_store.get(key)
-        return OK
-
-    if command.upper() == b"UNWATCH":
-        connection["watched_keys"] = {}
-        return OK
+    response = await transaction.handle(
+        command, args, connection, data_store, _dispatch
+    )
+    if response is not None:
+        return response
 
     return await _dispatch(command, args, data_store)
-
-
-def _reset_transaction(connection: dict) -> None:
-    connection["in_multi"] = False
-    connection["queue"] = []
-    connection["watched_keys"] = {}
 
 
 async def _dispatch(command: bytes, args: list[bytes], data_store: DataStore) -> bytes:
