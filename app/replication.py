@@ -1,5 +1,6 @@
 import asyncio
 
+from app.config import server_config
 from app.utils import send, to_resp_array, to_resp_bulk_string
 
 
@@ -33,3 +34,16 @@ async def handshake_with_master(replica_of: str, port: int) -> None:
     finally:
         writer.close()
         await writer.wait_closed()
+
+
+async def propagate(command: bytes, args: list[bytes]) -> None:
+    """Forward a write command to every connected replica.
+
+    Replicas that error on send (e.g. dropped connection) are removed from the set.
+    """
+    payload = to_resp_array([to_resp_bulk_string(p) for p in [command, *args]])
+    for replica_writer in list(server_config["replicas"]):
+        try:
+            await send(replica_writer, payload)
+        except OSError:
+            server_config["replicas"].discard(replica_writer)

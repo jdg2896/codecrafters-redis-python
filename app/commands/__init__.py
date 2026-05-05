@@ -9,7 +9,6 @@ from app.commands import (
     lpush,
     lrange,
     ping,
-    psync,
     replconf,
     rpush,
     set,
@@ -41,5 +40,15 @@ COMMAND_HANDLERS = {
     b"INCR": incr.handle,
     b"INFO": info.handle,
     b"REPLCONF": replconf.handle,
-    b"PSYNC": psync.handle,
+}
+
+# Commands that mutate the data store and must be propagated from master to replicas.
+WRITE_COMMANDS = {
+    b"SET",
+    b"RPUSH",
+    b"LPUSH",
+    b"LPOP",
+    b"BLPOP",
+    b"INCR",
+    b"XADD",
 }

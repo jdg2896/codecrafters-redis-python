@@ -2,7 +2,7 @@ import argparse
 import asyncio
 
 from app import replication, transaction
-from app.commands import COMMAND_HANDLERS
+from app.commands import COMMAND_HANDLERS, WRITE_COMMANDS, psync
 from app.config import server_config
 from app.constants import CRLF
 from app.types import DataStore
@@ -32,19 +32,22 @@ async def _handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWri
     """Handle incoming client connection, read commands, and respond to client."""
     client_address = get_client_address(writer)
     connection = transaction.new_connection_state()
+    connection["writer"] = writer
     print("Client connected:", client_address)
-    while True:
-        data = await reader.read(1024)
-        if not data:
-            break
+    try:
+        while True:
+            data = await reader.read(1024)
+            if not data:
+                break
 
-        response = await _handle_command(data, client_address, connection)
-        print("Sending response to client:", client_address, "Response:", response)
-        await send(writer, response)
-
-    writer.close()
-    await writer.wait_closed()
-    print("Client disconnected:", client_address)
+            response = await _handle_command(data, client_address, connection)
+            print("Sending response to client:", client_address, "Response:", response)
+            await send(writer, response)
+    finally:
+        server_config["replicas"].discard(writer)
+        writer.close()
+        await writer.wait_closed()
+        print("Client disconnected:", client_address)
 
 
 async def _handle_command(data: bytes, client_address: str, connection: dict) -> bytes:
@@ -91,7 +94,19 @@ async def _handle_command(data: bytes, client_address: str, connection: dict) ->
     if response is not None:
         return response
 
-    return await _dispatch(command, args, data_store)
+    if command.upper() == b"PSYNC":
+        return psync.handle(args, data_store, connection)
+
+    response = await _dispatch(command, args, data_store)
+
+    if (
+        server_config["role"] == "master"
+        and command.upper() in WRITE_COMMANDS
+        and not connection.get("is_replica", False)
+    ):
+        await replication.propagate(command, args)
+
+    return response
 
 
 async def _dispatch(command: bytes, args: list[bytes], data_store: DataStore) -> bytes:
