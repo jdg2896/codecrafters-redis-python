@@ -9,8 +9,11 @@ def handle(args: list[bytes], data_store: DataStore) -> bytes:
     if args[0] == b"replication":
         role = server_config["role"]
         replica_of = server_config["replica_of"]
+        master_replid = server_config["master_replid"]
+        master_repl_offset = server_config["master_repl_offset"]
         replication_info = (
             f"# Replication\r\nrole:{role}\r\nreplica_of:{replica_of}\r\n"
+            f"master_replid:{master_replid}\r\nmaster_repl_offset:{master_repl_offset}\r\n"
         )
         return to_resp_bulk_string(replication_info.encode())
     else:
