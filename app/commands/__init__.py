@@ -9,6 +9,7 @@ from app.commands import (
     lpush,
     lrange,
     ping,
+    psync,
     replconf,
     rpush,
     set,
@@ -40,4 +41,5 @@ COMMAND_HANDLERS = {
     b"INCR": incr.handle,
     b"INFO": info.handle,
     b"REPLCONF": replconf.handle,
+    b"PSYNC": psync.handle,
 }
