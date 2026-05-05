@@ -1,8 +1,15 @@
+from pathlib import Path
+
+from app.config import server_config
+from app.constants import CRLF
 from app.types import DataStore
 from app.utils import to_resp_simple_string
 
+EMPTY_RDB = (Path(__file__).parent.parent / "data" / "empty.rdb").read_bytes()
+
 
 def handle(args: list[bytes], data_store: DataStore) -> bytes:
-    return to_resp_simple_string(
-        b"FULLRESYNC 8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb 0"
-    )
+    repl_id = server_config["master_replid"]
+    fullresync = to_resp_simple_string(f"FULLRESYNC {repl_id} 0".encode())
+    rdb_payload = b"$" + str(len(EMPTY_RDB)).encode() + CRLF + EMPTY_RDB
+    return fullresync + rdb_payload
