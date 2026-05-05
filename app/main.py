@@ -5,7 +5,12 @@ from app.commands import COMMAND_HANDLERS
 from app.config import server_config
 from app.constants import CRLF, NULL_ARRAY, OK, QUEUED
 from app.types import DataStore
-from app.utils import get_client_address, to_resp_array, to_resp_error
+from app.utils import (
+    get_client_address,
+    to_resp_array,
+    to_resp_bulk_string,
+    to_resp_error,
+)
 
 # In-memory data store for SET and GET commands
 data_store: DataStore = {}
@@ -13,15 +18,23 @@ data_store: DataStore = {}
 
 async def main(port: int, replica_of: str | None) -> None:
     """Start Redis server and accept client connections using asyncio event loop."""
+    print(f"Starting Redis server on localhost:{port}...")
+    server = await asyncio.start_server(_handle_client, "localhost", port)
+
     print("Server configuration:", {"port": port, "replica_of": replica_of})
     server_config["replica_of"] = replica_of
     if replica_of:
         server_config["role"] = "slave"
+        master_host, master_port = replica_of.split()
+        reader, writer = await asyncio.open_connection(master_host, int(master_port))
+        writer.write(to_resp_array([to_resp_bulk_string(b"PING")]))
+        await writer.drain()
+        response = await reader.read(1024)
+        print("PING response from master:", response)
+        writer.close()
+        await writer.wait_closed()
 
-    print(f"Starting Redis server on localhost:{port}...")
-    server = await asyncio.start_server(_handle_client, "localhost", port)
-
-    print("Waiting for client connections...")
+    print("Server started. Waiting for client connections...")
     async with server:
         await server.serve_forever()
 
