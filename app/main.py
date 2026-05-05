@@ -25,12 +25,44 @@ async def main(port: int, replica_of: str | None) -> None:
     server_config["replica_of"] = replica_of
     if replica_of:
         server_config["role"] = "slave"
+
+        print("Start handshake with master server:", replica_of)
         master_host, master_port = replica_of.split()
         reader, writer = await asyncio.open_connection(master_host, int(master_port))
+        print("Sent PING to master server:", replica_of)
         writer.write(to_resp_array([to_resp_bulk_string(b"PING")]))
         await writer.drain()
         response = await reader.read(1024)
         print("PING response from master:", response)
+
+        print("Send REPLCONF listening-port to master server:", replica_of)
+        writer.write(
+            to_resp_array(
+                [
+                    to_resp_bulk_string(b"REPLCONF"),
+                    to_resp_bulk_string(b"listening-port"),
+                    to_resp_bulk_string(str(port).encode()),
+                ]
+            )
+        )
+        await writer.drain()
+        response = await reader.read(1024)
+        print("REPLCONF listening-port response from master:", response)
+
+        print("Send REPLCONF capa psync2to master server:", replica_of)
+        writer.write(
+            to_resp_array(
+                [
+                    to_resp_bulk_string(b"REPLCONF"),
+                    to_resp_bulk_string(b"capa"),
+                    to_resp_bulk_string(b"psync2"),
+                ]
+            )
+        )
+        await writer.drain()
+        response = await reader.read(1024)
+        print("REPLCONF capa psync2 response from master:", response)
+
         writer.close()
         await writer.wait_closed()
 
