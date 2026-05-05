@@ -27,6 +27,9 @@ async def handshake_with_master(replica_of: str, port: int) -> None:
 
         response = await send_command(reader, writer, b"REPLCONF", b"capa", b"psync2")
         print("REPLCONF capa psync2 response from master:", response)
+
+        response = await send_command(reader, writer, b"PSYNC", b"?", b"-1")
+        print("PSYNC response from master:", response)
     finally:
         writer.close()
         await writer.wait_closed()
